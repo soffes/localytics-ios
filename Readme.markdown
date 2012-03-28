@@ -8,22 +8,17 @@ This is my fork of the [Localytics](http://www.localytics.com) iOS client. Mainl
 * Add files to your project
 * Disable ARC for those files if you're using ARC
 * Add libSqlite3 to your target
+* Include `LocalyticsUtilities.h` for handy integration
+
+Here's the macro and functions provided:
 
 ``` objective-c
 #define ANALYTICS_ENABLED (!DEBUG && !TARGET_IPHONE_SIMULATOR)
 
-#if ANALYTICS_ENABLED
-  #import "LocalyticsSession.h"
-  #define LLStartSession(key) [[LocalyticsSession sharedLocalyticsSession] startSession:(key)];
-  #define LLLogEvent(name) [[LocalyticsSession sharedLocalyticsSession] tagEvent:(name)];
-  #define LLLogEventWithAttributes(name, parameters) [[LocalyticsSession sharedLocalyticsSession] tagEvent:(name) attributes:(parameters)];
-  #define LLLogScreen(screen) [[LocalyticsSession sharedLocalyticsSession] tagScreen:screen];
-#else
-  #define LLStartSession(...)
-  #define LLLogEvent(...)
-  #define LLLogEventWithAttributes(...)
-  #define LLLogScreen(...)
-#endif
+void LLStartSession(NSString *key);
+void LLTagEvent(NSString *name);
+void LLTagEventWithAttributes(NSString *name, NSDictionary *attributes);
+void LLTagScreen(NSString *name);
 ```
 
 App delegate:
