@@ -7,13 +7,10 @@
 //
 
 #import "LocalyticsUtilities.h"
-#if ANALYTICS_ENABLED
-#import "LocalyticsSession.h"
-#endif
 
 void LLStartSession(NSString *key) {
 #if ANALYTICS_ENABLED
-	[[LocalyticsSession sharedLocalyticsSession] startSession:(key)]
+	[[LocalyticsSession sharedLocalyticsSession] startSession:(key)];
 #endif
 }
 
@@ -32,7 +29,7 @@ void LLTagEventWithAttributes(NSString *name, NSDictionary *attributes) {
 }
 
 
-void LLTagScreen(NSString *name) {
+void LLTagScreen(NSString *screen) {
 #if ANALYTICS_ENABLED
 	[[LocalyticsSession sharedLocalyticsSession] tagScreen:screen];
 #endif
