@@ -1,4 +1,4 @@
-//  UploaderThread.m
+//  LocalyticsUploader.m
 //  Copyright (C) 2009 Char Software Inc., DBA Localytics
 // 
 //  This code is provided under the Localytics Modified BSD License.
@@ -7,42 +7,43 @@
 // 
 // Please visit www.localytics.com for more information.
 
-#import "UploaderThread.h"
+#import "LocalyticsUploader.h"
 #import "LocalyticsSession.h"
 #import "LocalyticsDatabase.h"
 #import <zlib.h>
 
-#define LOCALYTICS_URL             @"http://analytics.localytics.com/api/v2/applications/%@/uploads"            // url to send the 
+#define LOCALYTICS_URL    @"http://analytics.localytics.com/api/v2/applications/%@/uploads"
 
-static UploaderThread *_sharedUploaderThread = nil;
+static LocalyticsUploader *_sharedUploader = nil;
 
-@interface UploaderThread ()
-- (void)complete;
+@interface LocalyticsUploader ()
+- (void)finishUpload;
 - (NSData *)gzipDeflatedDataWithData:(NSData *)data;
 - (void)logMessage:(NSString *)message;
+
+@property (readwrite) BOOL isUploading;
+
 @end
 
-@implementation UploaderThread
+@implementation LocalyticsUploader
+@synthesize isUploading = _isUploading;
 
-@synthesize uploadConnection   = _uploadConnection;
-@synthesize isUploading        = _isUploading;
-
-#pragma mark Singleton Class
-+ (UploaderThread *)sharedUploaderThread {
+#pragma mark - Singleton Class
++ (LocalyticsUploader *)sharedLocalyticsUploader {
 	@synchronized(self) {
-		if (_sharedUploaderThread == nil) 
-		{
-			_sharedUploaderThread = [[self alloc] init];			
+		if (_sharedUploader == nil) {
+			_sharedUploader = [[self alloc] init];			
 		}
 	}
-	return _sharedUploaderThread;
+	return _sharedUploader;
 }
 
-#pragma mark Class Methods
-- (void)uploaderThreadwithApplicationKey:(NSString *)localyticsApplicationKey {
+#pragma mark - Class Methods
+
+- (void)uploaderWithApplicationKey:(NSString *)localyticsApplicationKey {
 	
 	// Do nothing if already uploading.
-	if (self.uploadConnection != nil || self.isUploading == true) 
+	if (self.isUploading == true) 
 	{
 		[self logMessage:@"Upload already in progress.  Aborting."];
 		return;
@@ -67,16 +68,15 @@ static UploaderThread *_sharedUploaderThread = nil;
     if ([blobString length] == 0) {
         // There is nothing outstanding to upload.
         [self logMessage:@"Abandoning upload. There are no new events."];
-
         [pool drain];
-        [self complete];
+        [self finishUpload];
+        
         return;
     }
 
 	NSData *requestData = [blobString dataUsingEncoding:NSUTF8StringEncoding];
     NSString *myString = [[[NSString alloc] initWithData:requestData encoding:NSUTF8StringEncoding] autorelease];
-    [self logMessage:@"Upload data:"];
-    [self logMessage:myString];
+    [self logMessage:[NSString  stringWithFormat:@"Uploading data (length: %u)", [myString length]]];
     
     // Step 2
     NSData *deflatedRequestData = [[self gzipDeflatedDataWithData:requestData] retain];
@@ -93,72 +93,49 @@ static UploaderThread *_sharedUploaderThread = nil;
 	[submitRequest setValue:[NSString stringWithFormat:@"%d", [deflatedRequestData length]] forHTTPHeaderField:@"Content-Length"];
 	[submitRequest setHTTPBody:deflatedRequestData];
     [deflatedRequestData release];
-	
-	// The NSURLConnection Object automatically spawns its own thread as a default behavior.
-	@try 
-	{
-		[self logMessage:@"Spawning new thread for upload"];
-		self.uploadConnection = [NSURLConnection connectionWithRequest:submitRequest delegate:self];
-		
-		// Step 3 is handled by connectionDidFinishLoading.
-	}
-	@catch (NSException * e) 
-	{ 
-		[self complete];
-	}	
+
+    // Perform synchronous upload in an async dispatch. This is necessary because the calling block will not persist to
+    // receive the response data.
+    dispatch_group_async([[LocalyticsSession sharedLocalyticsSession] criticalGroup], [[LocalyticsSession sharedLocalyticsSession] queue], ^{
+        @try  {
+            NSURLResponse *response = nil;
+            NSError *responseError = nil;
+            [NSURLConnection sendSynchronousRequest:submitRequest returningResponse:&response error:&responseError];
+            NSInteger responseStatusCode = [(NSHTTPURLResponse *)response statusCode];
+            
+            if (responseError) {
+                // On error, simply print the error and close the uploader.  We have to assume the data was not transmited
+                // so it is not deleted.  In the event that we accidently store data which was succesfully uploaded, the
+                // duplicate data will be ignored by the server when it is next uploaded.
+                [self logMessage:[NSString stringWithFormat: 
+                                  @"Error Uploading.  Code: %d,  Description: %@", 
+                                  [responseError code], 
+                                  [responseError localizedDescription]]];
+            } else {
+                // Step 3
+                // While response status codes in the 5xx range leave upload rows intact, the default case is to delete.
+                if (responseStatusCode >= 500 && responseStatusCode < 600) {
+                    [self logMessage:[NSString stringWithFormat:@"Upload failed with response status code %d", responseStatusCode]];
+                } else {
+                    // Because only one instance of the uploader can be running at a time it should not be possible for
+                    // new upload rows to appear so there is no fear of deleting data which has not yet been uploaded.
+                    [self logMessage:[NSString stringWithFormat:@"Upload completed successfully. Response code %d", responseStatusCode]];
+                    [[LocalyticsDatabase sharedLocalyticsDatabase] deleteUploadedData];
+                }
+            }
+        }
+        @catch (NSException * e) {}
+        
+        [self finishUpload];
+    });
 }
 
-#pragma mark **** NSURLConnection FUNCTIONS ****
-
-- (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data {
-	// Used to gather response data from server - Not utilized in this version
-}
-
-- (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response {
-    // Could receive multiple response callbacks, likely due to redirection.
-    // Record status and act only when connection completes load.
-    _responseStatusCode = [(NSHTTPURLResponse *)response statusCode];
-}
-
-- (void)connectionDidFinishLoading:(NSURLConnection *)connection {
-	// If the connection finished loading, the files should be deleted. While response status codes in the 5xx range
-    // leave upload rows intact, the default case is to delete.
-    if (_responseStatusCode >= 500 && _responseStatusCode < 600)
-    {
-        [self logMessage:[NSString stringWithFormat:@"Upload failed with response status code %d", _responseStatusCode]];
-    } else
-    {
-        // The connection finished loading and uploaded data should be deleted.  Because only one instance of the
-        // uploader can be running at a time it should not be possible for new upload rows to appear so there is no
-        // fear of deleting data which has not yet been uploaded.
-        [self logMessage:[NSString stringWithFormat:@"Upload completed successfully. Response code %d", _responseStatusCode]];
-        [[LocalyticsDatabase sharedLocalyticsDatabase] deleteUploadData];
-    }
-
-	// Close upload session
-	[self complete];
-}
-
-- (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error {
-	// On error, simply print the error and close the uploader.  We have to assume the data was not transmited
-	// so it is not deleted.  In the event that we accidently store data which was succesfully uploaded, the
-	// duplicate data will be ignored by the server when it is next uploaded.
-	[self logMessage:[NSString stringWithFormat: 
-					  @"Error Uploading.  Code: %d,  Description: %@", 
-					  [error code], 
-					  [error localizedDescription]]];
-
-	[self complete];
-}
-
-/*!
- @method complete
- @abstract closes the upload connection and reports back to the session that the upload is complete
- */
-- (void)complete {
-    _responseStatusCode = 0;
-	self.uploadConnection = nil;
-	self.isUploading = false;
+- (void)finishUpload
+{
+    self.isUploading = false;
+    
+    // Upload data has been deleted. Recover the disk space if necessary.
+    [[LocalyticsDatabase sharedLocalyticsDatabase] vacuumIfRequired];
 }
 
 /*!
@@ -211,19 +188,19 @@ static UploaderThread *_sharedUploaderThread = nil;
  @method logMessage
  @abstract Logs a message with (localytics uploader) prepended to it
  @param message The message to log
-*/
+ */
 - (void) logMessage:(NSString *)message {
     if(DO_LOCALYTICS_LOGGING) {
 		NSLog(@"(localytics uploader) %s\n", [message UTF8String]);
     }
 }
 
-#pragma mark System Functions
+#pragma mark - System Functions
 + (id)allocWithZone:(NSZone *)zone {
 	@synchronized(self) {
-		if (_sharedUploaderThread == nil) {
-			_sharedUploaderThread = [super allocWithZone:zone];
-			return _sharedUploaderThread;
+		if (_sharedUploader == nil) {
+			_sharedUploader = [super allocWithZone:zone];
+			return _sharedUploader;
 		}
 	}
 	// returns nil on subsequent allocations
@@ -252,8 +229,7 @@ static UploaderThread *_sharedUploaderThread = nil;
 }
 
 - (void)dealloc {
-	[_uploadConnection release];
-	[_sharedUploaderThread release];
+	[_sharedUploader release];
     [super dealloc];
 }
 
