@@ -237,9 +237,9 @@ static LocalyticsSession *_sharedLocalyticsSession = nil;
             [closeEventString appendString:[self formatAttributeWithName:PARAM_DATA_TYPE         value:@"c"                      first:YES]];
             [closeEventString appendString:[self formatAttributeWithName:PARAM_SESSION_UUID      value:self.sessionUUID]];
             [closeEventString appendString:[self formatAttributeWithName:PARAM_UUID              value:[self randomUUID] ]];
-            [closeEventString appendFormat:@",\"%@\":%u", PARAM_SESSION_START, (long)self.lastSessionStartTimestamp];
-            [closeEventString appendFormat:@",\"%@\":%u", PARAM_SESSION_ACTIVE, (long)self.sessionActiveDuration];
-            [closeEventString appendFormat:@",\"%@\":%u", PARAM_CLIENT_TIME, (long)[self currentTimestamp]];
+            [closeEventString appendFormat:@",\"%@\":%lu", PARAM_SESSION_START, (long)self.lastSessionStartTimestamp];
+            [closeEventString appendFormat:@",\"%@\":%lu", PARAM_SESSION_ACTIVE, (long)self.sessionActiveDuration];
+            [closeEventString appendFormat:@",\"%@\":%lu", PARAM_CLIENT_TIME, (long)[self currentTimestamp]];
             
             // Avoid recording session lengths of users with unreasonable client times (usually caused by developers testing clock change attacks)
             if(sessionLength > 0 && sessionLength < 400000) {
@@ -358,7 +358,7 @@ static LocalyticsSession *_sharedLocalyticsSession = nil;
             [eventString appendString:[self formatAttributeWithName:PARAM_APP_KEY       value:self.applicationKey ]];
             [eventString appendString:[self formatAttributeWithName:PARAM_SESSION_UUID  value:self.sessionUUID ]];
             [eventString appendString:[self formatAttributeWithName:PARAM_EVENT_NAME    value:[self escapeString:event] ]];
-            [eventString appendFormat:@",\"%@\":%u", PARAM_CLIENT_TIME, (long)[self currentTimestamp]];
+            [eventString appendFormat:@",\"%@\":%lu", PARAM_CLIENT_TIME, (long)[self currentTimestamp]];
 
             // Append the custom dimensions
             [eventString appendString:[self customDimensions]];
@@ -569,7 +569,7 @@ static LocalyticsSession *_sharedLocalyticsSession = nil;
             [openEventString appendString:@"{"];
             [openEventString appendString:[self formatAttributeWithName:PARAM_DATA_TYPE              value:@"s"              first:YES]];
             [openEventString appendString:[self formatAttributeWithName:PARAM_NEW_SESSION_UUID           value:self.sessionUUID]];
-            [openEventString appendFormat:@",\"%@\":%u", PARAM_CLIENT_TIME, (long)self.lastSessionStartTimestamp];
+            [openEventString appendFormat:@",\"%@\":%lu", PARAM_CLIENT_TIME, (long)self.lastSessionStartTimestamp];
             [openEventString appendFormat:@",\"%@\":%d", PARAM_SESSION_NUMBER, sessionNumber];            
             
             [openEventString appendString:[self customDimensions]];
@@ -672,7 +672,7 @@ static LocalyticsSession *_sharedLocalyticsSession = nil;
     // Open first level - blob information
     [headerString appendString:@"{"];
     [headerString appendFormat:@"\"%@\":%d", PARAM_SEQUENCE_NUMBER, nextSequenceNumber];
-    [headerString appendFormat:@",\"%@\":%u", PARAM_PERSISTED_AT, (long)[[LocalyticsDatabase sharedLocalyticsDatabase] createdTimestamp]];
+    [headerString appendFormat:@",\"%@\":%lu", PARAM_PERSISTED_AT, (long)[[LocalyticsDatabase sharedLocalyticsDatabase] createdTimestamp]];
     [headerString appendString:[self formatAttributeWithName:PARAM_DATA_TYPE    value:@"h" ]];
     [headerString appendString:[self formatAttributeWithName:PARAM_UUID         value:uuid ]];
 
@@ -695,7 +695,7 @@ static LocalyticsSession *_sharedLocalyticsSession = nil;
 
 // MAC Address collection. Uncomment the following line to add Mac address to the mix of collected identifiers
 //    [headerString appendString:[self formatAttributeWithName:PARAM_DEVICE_MAC value:[self hashString:[self macAddress]]     ]];    
-	[headerString appendString:[NSString stringWithFormat:@",\"%@\":%d", PARAM_DEVICE_MEMORY, (long)[self availableMemory]  ]];	
+	[headerString appendString:[NSString stringWithFormat:@",\"%@\":%ld", PARAM_DEVICE_MEMORY, (long)[self availableMemory]  ]];
 	[headerString appendString:[self formatAttributeWithName:PARAM_LOCALE_LANGUAGE   value:device_language]];
 	[headerString appendString:[self formatAttributeWithName:PARAM_LOCALE_COUNTRY    value:locale_country]];
 	[headerString appendString:[self formatAttributeWithName:PARAM_DEVICE_COUNTRY    value:[locale objectForKey:NSLocaleCountryCode]]];
@@ -725,7 +725,7 @@ static LocalyticsSession *_sharedLocalyticsSession = nil;
     [optEventString appendString:[self formatAttributeWithName:PARAM_DATA_TYPE  value:@"o"                  first:YES]];
 	[optEventString appendString:[self formatAttributeWithName:PARAM_APP_KEY    value:self.applicationKey   first:NO]];
 	[optEventString appendString:[NSString stringWithFormat:@",\"%@\":%@", PARAM_OPT_VALUE, (optState ? @"true" : @"false") ]];	
-    [optEventString appendFormat:@",\"%@\":%u", PARAM_CLIENT_TIME, (long)[self currentTimestamp]];
+    [optEventString appendFormat:@",\"%@\":%lu", PARAM_CLIENT_TIME, (long)[self currentTimestamp]];
 	[optEventString appendString:@"}\n"];
 
     BOOL success = [[LocalyticsDatabase sharedLocalyticsDatabase] addEventWithBlobString:[[optEventString copy] autorelease]];
@@ -752,7 +752,7 @@ static LocalyticsSession *_sharedLocalyticsSession = nil;
         [flowEventString appendString:@"{"];
         [flowEventString appendString:[self formatAttributeWithName:PARAM_DATA_TYPE value:@"f"                  first:YES]];
         [flowEventString appendString:[self formatAttributeWithName:PARAM_UUID      value:[self randomUUID] ]];
-        [flowEventString appendFormat:@",\"%@\":%u", PARAM_SESSION_START, (long)self.lastSessionStartTimestamp];
+        [flowEventString appendFormat:@",\"%@\":%lu", PARAM_SESSION_START, (long)self.lastSessionStartTimestamp];
         
         // Open second level - new flow events
         [flowEventString appendFormat:@",\"%@\":[", PARAM_NEW_FLOW_EVENTS];
