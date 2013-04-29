@@ -1,5 +1,5 @@
 //  WebserviceConstants.h
-//  Copyright (C) 2012 Char Software Inc., DBA Localytics
+//  Copyright (C) 2013 Char Software Inc., DBA Localytics
 //
 //  This code is provided under the Localytics Modified BSD License.
 //  A copy of this license has been distributed in a file called LICENSE
@@ -17,6 +17,7 @@
 #define HEADER_CLIENT_TIME      @"x-upload-time"
 #define HEADER_INSTALL_ID       @"x-install-id"
 #define HEADER_CLIENT_VERSION   @"x-client-version"
+#define HEADER_DELAY_SESSION	@"ll-first-session"
 
 /*********************
  * Shared Attributes *
@@ -67,6 +68,7 @@
 #define PARAM_DEVICE_MEMORY         @"dmem"     // Device Memory
 #define PARAM_IDENTIFIERS           @"ids"      // Identifiers (dictionary)
 #define PARAM_BIRTH_TIME            @"b"        // Birth time (Since epoch)
+#define PARAM_TIMEZONE_OFFSET		@"tz"       // Device offset from GMT in seconds
 
 /*****************
  * Session Start *
@@ -127,6 +129,5 @@
 #define FB_DEVICE_ID                @"dpid"                     // Device unique identifiers
 #define FB_DEVICE_ID_TYPE           @"dpid_type"                // Either UDID or ADID (advertisingIdentifier)
 #define FB_INSTALL_ID               @"install_id"               // Device install ID
-
 
 
